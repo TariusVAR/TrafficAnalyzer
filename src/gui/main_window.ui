@@ -1,0 +1,302 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1024</width>
+    <height>768</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Анализатор трафика</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <widget class="QTableView" name="tableViewPacketShowcase">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>105</y>
+      <width>740</width>
+      <height>430</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="btnStartSniffing">
+    <property name="geometry">
+     <rect>
+      <x>175</x>
+      <y>25</y>
+      <width>140</width>
+      <height>40</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Старт</string>
+    </property>
+   </widget>
+   <widget class="QComboBox" name="comboBoxInterface">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>25</y>
+      <width>160</width>
+      <height>40</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="btnStopSniffing">
+    <property name="geometry">
+     <rect>
+      <x>320</x>
+      <y>25</y>
+      <width>140</width>
+      <height>40</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Стоп</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="btnFilter">
+    <property name="geometry">
+     <rect>
+      <x>895</x>
+      <y>70</y>
+      <width>120</width>
+      <height>30</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Применить </string>
+    </property>
+   </widget>
+   <widget class="QTextEdit" name="textEdit">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>70</y>
+      <width>740</width>
+      <height>30</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <weight>50</weight>
+      <italic>false</italic>
+      <bold>false</bold>
+      <kerning>true</kerning>
+     </font>
+    </property>
+    <property name="locale">
+     <locale language="English" country="UnitedStates"/>
+    </property>
+    <property name="placeholderText">
+     <string>Фильтр отображения</string>
+    </property>
+   </widget>
+   <widget class="QListView" name="listViewSuspiciousPackets">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>555</y>
+      <width>740</width>
+      <height>160</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QTreeView" name="treeViewPacketInfo">
+    <property name="geometry">
+     <rect>
+      <x>760</x>
+      <y>105</y>
+      <width>255</width>
+      <height>610</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="btnImportFromFile">
+    <property name="geometry">
+     <rect>
+      <x>465</x>
+      <y>25</y>
+      <width>140</width>
+      <height>40</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Импорт</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="btnExportToFile">
+    <property name="geometry">
+     <rect>
+      <x>610</x>
+      <y>25</y>
+      <width>140</width>
+      <height>40</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Экспорт</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>5</y>
+      <width>161</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>8</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>Сетевой интерфейс:</string>
+    </property>
+    <property name="alignment">
+     <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+    </property>
+   </widget>
+   <widget class="QComboBox" name="comboBoxFilterOptions">
+    <property name="geometry">
+     <rect>
+      <x>760</x>
+      <y>70</y>
+      <width>130</width>
+      <height>30</height>
+     </rect>
+    </property>
+    <item>
+     <property name="text">
+      <string>IP адрес</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>Протокол</string>
+     </property>
+    </item>
+   </widget>
+   <widget class="QPushButton" name="btnRestart">
+    <property name="geometry">
+     <rect>
+      <x>760</x>
+      <y>25</y>
+      <width>255</width>
+      <height>40</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Перезапуск захвата </string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_2">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>535</y>
+      <width>161</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>8</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>Подозрительнй трафик:</string>
+    </property>
+    <property name="alignment">
+     <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1024</width>
+     <height>26</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menu">
+    <property name="title">
+     <string>Файл</string>
+    </property>
+    <addaction name="action"/>
+    <addaction name="action_2"/>
+    <addaction name="action_3"/>
+    <addaction name="separator"/>
+    <addaction name="action_6"/>
+   </widget>
+   <widget class="QMenu" name="menu_2">
+    <property name="title">
+     <string>Вид</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menu_3">
+    <property name="title">
+     <string>Справка</string>
+    </property>
+    <addaction name="action_7"/>
+    <addaction name="action_8"/>
+    <addaction name="action_9"/>
+   </widget>
+   <addaction name="menu"/>
+   <addaction name="menu_2"/>
+   <addaction name="menu_3"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="action">
+   <property name="text">
+    <string>Открыть</string>
+   </property>
+  </action>
+  <action name="action_2">
+   <property name="text">
+    <string>Сохранить</string>
+   </property>
+  </action>
+  <action name="action_3">
+   <property name="text">
+    <string>Сохранить как</string>
+   </property>
+  </action>
+  <action name="action_4">
+   <property name="text">
+    <string>Выход</string>
+   </property>
+  </action>
+  <action name="action_6">
+   <property name="text">
+    <string>Выход</string>
+   </property>
+  </action>
+  <action name="action_7">
+   <property name="text">
+    <string>Фильтрация</string>
+   </property>
+  </action>
+  <action name="action_8">
+   <property name="text">
+    <string>Импорт/экспорт</string>
+   </property>
+  </action>
+  <action name="action_9">
+   <property name="text">
+    <string>О программе</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
