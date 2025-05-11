@@ -1,12 +1,19 @@
-from PyQt5.QtWidgets import QMainWindow, QFileDialog
+from PyQt5.QtWidgets import QMainWindow, QFileDialog, QHeaderView
 from PyQt5.uic import loadUi
-from scapy.all import get_if_list
-from src.core.traffic_analyzer import PacketTrafficAnalyzer
+from PyQt5.QtCore import Qt
+from scapy.all import get_working_ifaces
+from src.core.main_logic import PacketTrafficAnalyzer
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         loadUi("src/gui/main_window.ui", self)
+        self.iface_map = {}
+
+        PacketTrafficAnalyzer.set_main_window(self)
+
+        self.tableViewPacketShowcase.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.tableViewPacketShowcase.setAlternatingRowColors(True)
 
         self.btnStartSniffing.clicked.connect(self.start_sniffing)
         self.btnStopSniffing.clicked.connect(self.stop_sniffing)
@@ -15,17 +22,24 @@ class MainWindow(QMainWindow):
         self.btnFilter.clicked.connect(self.apply_filter)
         self.btnRestart.clicked.connect(self.restart_sniffing)
 
-        self.comboBoxInterface.addItems(get_if_list())
+        for iface in get_working_ifaces():
+            display_name = f"{iface.name} - {iface.description or 'Без описания'} ({iface.ip or 'нет IP'})"
+            self.comboBoxInterface.addItem(display_name)
+            self.iface_map[display_name] = iface.name
 
         self.packet_model = PacketTrafficAnalyzer.get_packet_model()
+        self.proxy_model = PacketTrafficAnalyzer.get_proxy_model()
         self.suspicious_model = PacketTrafficAnalyzer.get_suspicious_model()
 
-        self.tableViewPacketShowcase.setModel(self.packet_model)
+        self.tableViewPacketShowcase.setModel(self.proxy_model)
+        self.tableViewPacketShowcase.setSortingEnabled(True)
+        self.tableViewPacketShowcase.sortByColumn(0, Qt.AscendingOrder)
         self.listViewSuspiciousPackets.setModel(self.suspicious_model)
 
     def start_sniffing(self):
-        iface = self.comboBoxInterface.currentText()
         filter_text = self.textEdit.toPlainText()
+        display_name = self.comboBoxInterface.currentText()
+        iface = self.iface_map.get(display_name)
         PacketTrafficAnalyzer.start_sniffing(iface, filter_text, self.on_packet_received)
         self.statusbar.showMessage("Захват запущен")
 
@@ -34,8 +48,12 @@ class MainWindow(QMainWindow):
         self.statusbar.showMessage("Захват остановлен")
 
     def restart_sniffing(self):
+        self.packet_model.packets.clear()
+        self.packet_model.layoutChanged.emit()
+
         PacketTrafficAnalyzer.restart_sniffing()
         self.statusbar.showMessage("Захват перезапущен")
+
 
     def apply_filter(self):
         filter_text = self.textEdit.toPlainText()
@@ -55,3 +73,4 @@ class MainWindow(QMainWindow):
     def on_packet_received(self, packet):
         self.packet_model.add_packet(packet)
         self.suspicious_model.add_if_suspicious(packet)
+        self.tableViewPacketShowcase.scrollToBottom()

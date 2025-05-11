@@ -1,27 +1,31 @@
-import threading
+from PyQt5.QtCore import QObject, QThread, pyqtSignal
 from scapy.all import sniff
 
-class PacketSniffer:
-    def __init__(self, iface, filter_expr, on_packet_callback):
+class PacketSnifferWorker(QObject):
+    packet_received = pyqtSignal(object)
+    finished = pyqtSignal()
+
+    def __init__(self, iface, filter_expr):
+        super().__init__()
         self.iface = iface
         self.filter_expr = filter_expr
-        self.on_packet_callback = on_packet_callback
-        self.thread = None
-        self._stop_sniffing = threading.Event()
+        self._stop = False
 
-    def start(self):
-        self.thread = threading.Thread(target=self._sniff, daemon=True)
-        self.thread.start()
-
-    def stop(self):
-        self._stop_sniffing.set()
-
-    def _sniff(self):
-        sniff(iface=self.iface, filter=self.filter_expr, prn=self._handle_packet, stop_filter=self._should_stop)
+    def start_sniffing(self):
+        sniff(
+            iface=self.iface,
+            filter=self.filter_expr,
+            prn=self._handle_packet,
+            stop_filter=self._should_stop
+        )
+        self.finished.emit()
 
     def _handle_packet(self, packet):
-        if not self._stop_sniffing.is_set():
-            self.on_packet_callback(packet)
+        if not self._stop:
+            self.packet_received.emit(packet)
 
     def _should_stop(self, packet):
-        return self._stop_sniffing.is_set()
+        return self._stop
+
+    def stop(self):
+        self._stop = True
