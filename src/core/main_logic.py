@@ -1,8 +1,9 @@
-from PyQt5.QtCore import QThread, QSortFilterProxyModel
+from PyQt5.QtCore import QThread, QSortFilterProxyModel, QRegExp, Qt
 from src.core.packet_sniffer import PacketSnifferWorker
 from src.core.models.packet_model import PacketTableModel
 from src.core.models.suspicious_model import SuspiciousListModel
 from src.core.file_operations import import_packets_from_file, export_packets_to_file
+
 
 class PacketTrafficAnalyzer:
     packet_model = PacketTableModel()
@@ -34,25 +35,60 @@ class PacketTrafficAnalyzer:
     def stop_sniffing():
         if PacketTrafficAnalyzer.sniffer_worker:
             PacketTrafficAnalyzer.sniffer_worker.stop()
+            PacketTrafficAnalyzer.sniffer_thread.quit()
+            PacketTrafficAnalyzer.sniffer_thread.wait()
+
+            PacketTrafficAnalyzer.sniffer_worker = None
+            PacketTrafficAnalyzer.sniffer_thread = None
 
     @staticmethod
-    def restart_sniffing():
-        PacketTrafficAnalyzer.stop_sniffing()
+    def restart_sniffing(iface_map):
+        main_window = PacketTrafficAnalyzer.main_window
+        display_name = PacketTrafficAnalyzer.main_window.comboBoxInterface.currentText()
+        iface = iface_map.get(display_name)
+        filter_text = ''
+
+        if PacketTrafficAnalyzer.sniffer_worker is not None:
+            PacketTrafficAnalyzer.stop_sniffing()
 
         PacketTrafficAnalyzer.packet_model.packets.clear()
         PacketTrafficAnalyzer.packet_model.layoutChanged.emit()
         PacketTrafficAnalyzer.suspicious_model.clear()
+        PacketTrafficAnalyzer.packet_model.reset_packet_counter()
 
-        iface = PacketTrafficAnalyzer.sniffer_worker.iface
-        filter_text = PacketTrafficAnalyzer.sniffer_worker.filter_expr
-
-        main_window = PacketTrafficAnalyzer.main_window
         PacketTrafficAnalyzer.start_sniffing(iface, filter_text, main_window.on_packet_received)
 
     @staticmethod
-    def apply_filter(filter_text):
-        # TODO: реализовать фильтрацию уже полученных пакетов
-        pass
+    def apply_filter(self):
+        from PyQt5.QtCore import QRegExp
+        filter_text = self.filterInput.toPlainText().strip()
+        filter_type = self.comboBoxFilterOptions.currentText().lower()
+
+        if not filter_text:
+            PacketTrafficAnalyzer.proxy_model.setFilterRegExp(QRegExp())
+            return
+
+        patterns = [item.strip() for item in filter_text.split(',') if item.strip()]
+        if not patterns:
+            return
+
+        if filter_type == "ip адрес":
+            regex = '|'.join(patterns)
+            PacketTrafficAnalyzer.proxy_model.setFilterKeyColumn(-1)  # Search all columns
+            PacketTrafficAnalyzer.proxy_model.setFilterRegExp(QRegExp(regex, Qt.CaseInsensitive, QRegExp.RegExp))
+
+        elif filter_type == "порт":
+            regex = '|'.join(rf'\b{port}\b' for port in patterns)
+            PacketTrafficAnalyzer.proxy_model.setFilterKeyColumn(-1)
+            PacketTrafficAnalyzer.proxy_model.setFilterRegExp(QRegExp(regex, Qt.CaseInsensitive, QRegExp.RegExp))
+
+        elif filter_type == "протокол":
+            regex = '|'.join(proto.upper() for proto in patterns)
+            PacketTrafficAnalyzer.proxy_model.setFilterKeyColumn(4)  # Protocol column
+            PacketTrafficAnalyzer.proxy_model.setFilterRegExp(QRegExp(regex, Qt.CaseInsensitive, QRegExp.RegExp))
+
+        else:
+            PacketTrafficAnalyzer.proxy_model.setFilterRegExp(QRegExp())
 
     @staticmethod
     def import_packets(file_name):

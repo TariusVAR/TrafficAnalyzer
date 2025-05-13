@@ -12,12 +12,14 @@ class PacketSnifferWorker(QObject):
         self._stop = False
 
     def start_sniffing(self):
-        sniff(
-            iface=self.iface,
-            filter=self.filter_expr,
-            prn=self._handle_packet,
-            stop_filter=self._should_stop
-        )
+        self._stop = False
+        while not self._stop:
+            sniff(
+                iface=self.iface,
+                filter=self.filter_expr,
+                prn=self._handle_packet,
+                timeout=1
+            )
         self.finished.emit()
 
     def _handle_packet(self, packet):
