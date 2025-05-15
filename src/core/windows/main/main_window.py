@@ -1,18 +1,25 @@
-from PyQt5.QtWidgets import QMainWindow, QFileDialog, QHeaderView, QTreeWidgetItem
+from PyQt5.QtWidgets import QMainWindow, QFileDialog, QHeaderView, QTreeWidgetItem, QMessageBox, QInputDialog
 from PyQt5.uic import loadUi
 from PyQt5.QtCore import Qt
 from scapy.all import get_working_ifaces
-from src.core.main_logic import PacketTrafficAnalyzer
-from scapy.layers.inet import IP, TCP, UDP
 from datetime import datetime
+
+from src.core.windows.main.main_logic import PacketTrafficAnalyzer
+from src.core.windows.auth.auth_window import AuthWindow
+from src.database.db_interface import DBInterface
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         loadUi("src/gui/main_window.ui", self)
         self.iface_map = {}
+        self.user_id = None
+        self.username = None
 
         PacketTrafficAnalyzer.set_main_window(self)
+
+        self.actionAuthorisation.triggered.connect(self.handle_auth_menu)
 
         self.tableViewPacketShowcase.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.tableViewPacketShowcase.setAlternatingRowColors(True)
@@ -36,7 +43,9 @@ class MainWindow(QMainWindow):
         self.tableViewPacketShowcase.setModel(self.proxy_model)
         self.tableViewPacketShowcase.setSortingEnabled(True)
         self.tableViewPacketShowcase.sortByColumn(0, Qt.AscendingOrder)
+
         self.listViewSuspiciousPackets.setModel(self.suspicious_model)
+        self.suspicious_model.rowsInserted.connect(self.scroll_to_bottom_suspicious_list)
 
         self.tableViewPacketShowcase.selectionModel().selectionChanged.connect(self.on_row_selected)
         self.treeViewPacketInfo.setHeaderLabels(["Поле", "Значение"])
@@ -80,14 +89,73 @@ class MainWindow(QMainWindow):
         self.statusbar.showMessage(f"Фильтр применён: {filter_text}")
 
     def import_packets(self):
-        file_name, _ = QFileDialog.getOpenFileName(self, "Импортировать pcap", "", "PCAP files (*.pcap *.cap)")
-        if file_name:
-            PacketTrafficAnalyzer.import_packets(file_name)
+        choice = QMessageBox.question(
+            self, "Загрузка", "Загрузить с диска или из базы данных?",
+            QMessageBox.StandardButton.Open | QMessageBox.StandardButton.Yes,
+            QMessageBox.StandardButton.Open
+        )
+
+        if choice == QMessageBox.StandardButton.Open:
+            file_name, _ = QFileDialog.getOpenFileName(self, "Импортировать pcap", "", "PCAP files (*.pcap *.cap)")
+            if file_name:
+                self.packet_model.beginResetModel()
+                self.packet_model.packets.clear()
+                self.packet_model.reset_packet_counter()
+                self.packet_model.endResetModel()
+                self.treeViewPacketInfo.clear()
+                self.suspicious_model.clear()
+                PacketTrafficAnalyzer.import_packets(file_name)
+                self.statusbar.showMessage(f"Импортировано: {file_name}")
+        elif choice == QMessageBox.StandardButton.Yes:
+            if not self.user_id:
+                self.handle_auth_menu()
+                return
+            db = DBInterface()
+            sessions = db.list_sessions(self.user_id)
+            if sessions:
+                session, ok = QInputDialog.getItem(self, "Выбор сессии", "Выберите:", sessions, 0, False)
+                if ok:
+                    PacketTrafficAnalyzer.import_packets_from_db(session)
+                    self.treeViewPacketInfo.clear()
+                    self.statusbar.showMessage(f"Загружено пакетов из БД: {session}")
+
 
     def export_packets(self):
-        file_name, _ = QFileDialog.getSaveFileName(self, "Сохранить pcap", "", "PCAP files (*.pcap)")
-        if file_name:
-            PacketTrafficAnalyzer.export_packets(file_name)
+        if not self.packet_model.packets:
+            QMessageBox.information(self, "Нет данных", "Нет пакетов для сохранения.")
+            return
+
+        choice = QMessageBox.question(
+            self, "Сохранение", "Сохранить на диск или в базу данных?",
+            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Yes,
+            QMessageBox.StandardButton.Save
+        )
+
+        if choice == QMessageBox.StandardButton.Save:
+            file_name, _ = QFileDialog.getSaveFileName(self, "Сохранить pcap", "", "PCAP files (*.pcap)")
+            if file_name:
+                PacketTrafficAnalyzer.export_packets(file_name)
+                self.statusbar.showMessage(f"Сохранено в файл: {file_name}")
+        elif choice == QMessageBox.StandardButton.Yes:
+            if not self.user_id:
+                self.handle_auth_menu()
+                return
+            session_name, ok = QFileDialog.getSaveFileName(self, "Имя сессии", "", "")
+            if ok:
+                PacketTrafficAnalyzer.export_packets_to_db(self.user_id, session_name)
+                QMessageBox.information(self, "Успешно", f"Сессия сохранена в БД как '{session_name}'")
+
+    def scroll_to_bottom_suspicious_list(self):
+        self.listViewSuspiciousPackets.scrollToBottom()
+
+    def handle_auth_menu(self):
+        self.auth_window = AuthWindow(self.on_auth_success)
+        self.auth_window.show()
+
+    def on_auth_success(self, user_id, username):
+        self.user_id = user_id
+        self.username = username
+        self.statusbar.showMessage(f"Вы вошли как: {username}")
 
     def on_packet_received(self, packet):
         self.packet_model.add_packet(packet)
@@ -104,18 +172,25 @@ class MainWindow(QMainWindow):
             return
 
         source_index = self.proxy_model.mapToSource(proxy_index)
-        packet = self.packet_model.packets[source_index.row()]
+        packet = self.packet_model.packets[source_index.row()]  # это словарь
 
         self.treeViewPacketInfo.clear()
         self.treeViewPacketInfo.setHeaderLabels(["Поле", "Значение"])
 
         root = QTreeWidgetItem(self.treeViewPacketInfo)
-        root.setText(0, f"Пакет №{packet.custom_number}")
+        root.setText(0, f"Пакет №{source_index.row() + 1}")
 
-        self.add_tree_item(root, "Время", datetime.fromtimestamp(packet.time).strftime('%Y-%m-%d %H:%M:%S'))
-        self.add_tree_item(root, "Сводка", packet.summary())
+        try:
+            timestamp = packet['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
+        except Exception:
+            timestamp = "Неизвестно"
 
-        self.add_packet_layers_to_tree(root, packet)
+        scapy_packet = packet['packet']
+
+        self.add_tree_item(root, "Время", timestamp)
+        self.add_tree_item(root, "Сводка", scapy_packet.summary())
+
+        self.add_packet_layers_to_tree(root, scapy_packet)
 
         self.treeViewPacketInfo.expandItem(root)
 

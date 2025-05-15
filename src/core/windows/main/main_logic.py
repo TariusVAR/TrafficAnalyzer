@@ -3,6 +3,7 @@ from src.core.packet_sniffer import PacketSnifferWorker
 from src.core.models.packet_model import PacketTableModel
 from src.core.models.suspicious_model import SuspiciousListModel
 from src.core.file_operations import import_packets_from_file, export_packets_to_file
+from src.database.db_interface import DBInterface
 
 
 class PacketTrafficAnalyzer:
@@ -37,30 +38,26 @@ class PacketTrafficAnalyzer:
             PacketTrafficAnalyzer.sniffer_worker.stop()
             PacketTrafficAnalyzer.sniffer_thread.quit()
             PacketTrafficAnalyzer.sniffer_thread.wait()
-
             PacketTrafficAnalyzer.sniffer_worker = None
             PacketTrafficAnalyzer.sniffer_thread = None
 
     @staticmethod
     def restart_sniffing(iface_map):
-        main_window = PacketTrafficAnalyzer.main_window
         display_name = PacketTrafficAnalyzer.main_window.comboBoxInterface.currentText()
         iface = iface_map.get(display_name)
         filter_text = ''
 
-        if PacketTrafficAnalyzer.sniffer_worker is not None:
-            PacketTrafficAnalyzer.stop_sniffing()
+        PacketTrafficAnalyzer.stop_sniffing()
 
         PacketTrafficAnalyzer.packet_model.packets.clear()
         PacketTrafficAnalyzer.packet_model.layoutChanged.emit()
         PacketTrafficAnalyzer.suspicious_model.clear()
         PacketTrafficAnalyzer.packet_model.reset_packet_counter()
 
-        PacketTrafficAnalyzer.start_sniffing(iface, filter_text, main_window.on_packet_received)
+        PacketTrafficAnalyzer.start_sniffing(iface, filter_text, PacketTrafficAnalyzer.main_window.on_packet_received)
 
     @staticmethod
     def apply_filter(self):
-        from PyQt5.QtCore import QRegExp
         filter_text = self.filterInput.toPlainText().strip()
         filter_type = self.comboBoxFilterOptions.currentText().lower()
 
@@ -74,7 +71,7 @@ class PacketTrafficAnalyzer:
 
         if filter_type == "ip адрес":
             regex = '|'.join(patterns)
-            PacketTrafficAnalyzer.proxy_model.setFilterKeyColumn(-1)  # Search all columns
+            PacketTrafficAnalyzer.proxy_model.setFilterKeyColumn(-1)
             PacketTrafficAnalyzer.proxy_model.setFilterRegExp(QRegExp(regex, Qt.CaseInsensitive, QRegExp.RegExp))
 
         elif filter_type == "порт":
@@ -84,12 +81,13 @@ class PacketTrafficAnalyzer:
 
         elif filter_type == "протокол":
             regex = '|'.join(proto.upper() for proto in patterns)
-            PacketTrafficAnalyzer.proxy_model.setFilterKeyColumn(4)  # Protocol column
+            PacketTrafficAnalyzer.proxy_model.setFilterKeyColumn(4)
             PacketTrafficAnalyzer.proxy_model.setFilterRegExp(QRegExp(regex, Qt.CaseInsensitive, QRegExp.RegExp))
 
         else:
             PacketTrafficAnalyzer.proxy_model.setFilterRegExp(QRegExp())
 
+    # -----file-----
     @staticmethod
     def import_packets(file_name):
         packets = import_packets_from_file(file_name)
@@ -101,10 +99,32 @@ class PacketTrafficAnalyzer:
     def export_packets(file_name):
         export_packets_to_file(file_name, PacketTrafficAnalyzer.packet_model.packets)
 
+    # -----database-----
+    @staticmethod
+    def import_packets_from_db(session_name):
+        db = DBInterface()
+        packets_info = db.load_packets_from_db(session_name)
+
+        PacketTrafficAnalyzer.packet_model.beginResetModel()
+        PacketTrafficAnalyzer.packet_model.packets = packets_info
+        PacketTrafficAnalyzer.packet_model.reset_packet_counter()
+        PacketTrafficAnalyzer.packet_model.endResetModel()  
+
+        PacketTrafficAnalyzer.suspicious_model.clear()
+        for item in packets_info:
+            PacketTrafficAnalyzer.suspicious_model.add_if_suspicious(item['packet'])
+
+    @staticmethod
+    def export_packets_to_db(user_id, session_name):
+        db = DBInterface()
+        db.save_packets_to_db(user_id, session_name, PacketTrafficAnalyzer.packet_model.packets)
+
+
+    # -----models-----
     @staticmethod
     def get_packet_model():
         return PacketTrafficAnalyzer.packet_model
-    
+
     @staticmethod
     def get_proxy_model():
         PacketTrafficAnalyzer.proxy_model.setSourceModel(PacketTrafficAnalyzer.packet_model)

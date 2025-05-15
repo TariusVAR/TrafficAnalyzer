@@ -23,68 +23,42 @@ class PacketTableModel(QAbstractTableModel):
         if not index.isValid():
             return None
 
-        packet = self.packets[index.row()]
+        item = self.packets[index.row()]  # теперь словарь с метаданными и пакетом
         col = index.column()
 
         if role == Qt.DisplayRole:
             try:
                 if col == 0:
-                    return getattr(packet, "custom_number", index.row() + 1)
+                    return index.row() + 1
                 elif col == 1:
-                    return datetime.fromtimestamp(packet.time).strftime('%Y-%m-%d %H:%M:%S')
+                    return item['timestamp'].strftime('%Y-%m-%d %H:%M:%S') if item['timestamp'] else "-"
                 elif col == 2:
-                    ip_layer = packet.getlayer(IP)
-                    return ip_layer.src if ip_layer else "-"
+                    return item['src_ip'] or "-"
                 elif col == 3:
-                    ip_layer = packet.getlayer(IP)
-                    return ip_layer.dst if ip_layer else "-"
+                    return item['dst_ip'] or "-"
                 elif col == 4:
-                    if packet.haslayer(TCP):
-                        return "TCP"
-                    elif packet.haslayer(UDP):
-                        return "UDP"
-                    elif packet.haslayer(IP):
-                        return "IP"
-                    else:
-                        return packet.name if hasattr(packet, 'name') else "-"
+                    return item['protocol'] or "-"
                 elif col == 5:
-                    transport = packet.getlayer(TCP) or packet.getlayer(UDP)
-                    return transport.sport if transport else "-"
+                    return item['src_port'] if item['src_port'] is not None else "-"
                 elif col == 6:
-                    transport = packet.getlayer(TCP) or packet.getlayer(UDP)
-                    return transport.dport if transport else "-"
+                    return item['dst_port'] if item['dst_port'] is not None else "-"
                 elif col == 7:
-                    return self.get_flags(packet)
+                    return item['tcp_flags'] or "-"
             except Exception as e:
                 return f"Ошибка: {str(e)}"
 
         elif role == Qt.BackgroundRole:
-            if packet.haslayer(TCP):
+            proto = (item.get('protocol') or '').upper()
+            if proto == "TCP":
                 return QColor("#d0e7ff")
-            elif packet.haslayer(UDP):
+            elif proto == "UDP":
                 return QColor("#d2f8d2")
-            elif packet.haslayer("ICMP"):
+            elif proto == "ICMP":
                 return QColor("#fff5cc")
             else:
                 return None
 
         return None
-
-    def get_flags(self, packet):
-        tcp_layer = packet.getlayer(TCP)
-        if tcp_layer and hasattr(tcp_layer, "flags"):
-            flags = tcp_layer.sprintf('%TCP.flags%')
-            flag_list = []
-            if 'A' in flags:
-                flag_list.append('ACK')
-            if 'R' in flags:
-                flag_list.append('RST')
-            if 'S' in flags:
-                flag_list.append('SYN')
-            if 'F' in flags:
-                flag_list.append('FIN')
-            return ", ".join(flag_list) if flag_list else "-"
-        return "-"
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
@@ -92,10 +66,41 @@ class PacketTableModel(QAbstractTableModel):
         return None
 
     def add_packet(self, packet):
+        item = {
+            'timestamp': datetime.fromtimestamp(packet.time),
+            'src_ip': packet.getlayer(IP).src if packet.haslayer(IP) else None,
+            'dst_ip': packet.getlayer(IP).dst if packet.haslayer(IP) else None,
+            'protocol': None,
+            'src_port': None,
+            'dst_port': None,
+            'tcp_flags': None,
+            'packet': packet,
+        }
+
+        if packet.haslayer(TCP):
+            tcp = packet.getlayer(TCP)
+            item['protocol'] = 'TCP'
+            item['src_port'] = tcp.sport
+            item['dst_port'] = tcp.dport
+            flags = tcp.sprintf('%TCP.flags%')
+            flags_list = []
+            if 'A' in flags: flags_list.append('ACK')
+            if 'R' in flags: flags_list.append('RST')
+            if 'S' in flags: flags_list.append('SYN')
+            if 'F' in flags: flags_list.append('FIN')
+            item['tcp_flags'] = ", ".join(flags_list) if flags_list else None
+        elif packet.haslayer(UDP):
+            udp = packet.getlayer(UDP)
+            item['protocol'] = 'UDP'
+            item['src_port'] = udp.sport
+            item['dst_port'] = udp.dport
+        elif packet.haslayer(IP):
+            item['protocol'] = 'IP'
+        else:
+            item['protocol'] = packet.name if hasattr(packet, 'name') else "-"
+
         self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount())
-        packet.custom_number = self.packet_counter
-        self.packet_counter += 1
-        self.packets.append(packet)
+        self.packets.append(item)
         self.endInsertRows()
 
     def reset_packet_counter(self):
