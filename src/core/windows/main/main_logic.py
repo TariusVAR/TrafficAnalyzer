@@ -4,7 +4,7 @@ from src.core.models.packet_model import PacketTableModel
 from src.core.models.suspicious_model import SuspiciousListModel
 from src.core.file_operations import import_packets_from_file, export_packets_to_file
 from src.database.db_interface import DBInterface
-
+from scapy.all import Ether
 
 class PacketTrafficAnalyzer:
     packet_model = PacketTableModel()
@@ -97,22 +97,24 @@ class PacketTrafficAnalyzer:
 
     @staticmethod
     def export_packets(file_name):
-        export_packets_to_file(file_name, PacketTrafficAnalyzer.packet_model.packets)
+        queries = PacketTrafficAnalyzer.packet_model.packets
+        packets = [query['packet'] for query in queries]
+        [print(packet) for packet in packets]
+        export_packets_to_file(file_name, packets)
 
     # -----database-----
     @staticmethod
     def import_packets_from_db(session_name):
         db = DBInterface()
-        packets_info = db.load_packets_from_db(session_name)
-
+        packets = db.load_packets_from_db(session_name, True)
         PacketTrafficAnalyzer.packet_model.beginResetModel()
-        PacketTrafficAnalyzer.packet_model.packets = packets_info
+        PacketTrafficAnalyzer.packet_model.packets = packets
         PacketTrafficAnalyzer.packet_model.reset_packet_counter()
         PacketTrafficAnalyzer.packet_model.endResetModel()  
 
-        PacketTrafficAnalyzer.suspicious_model.clear()
-        for item in packets_info:
-            PacketTrafficAnalyzer.suspicious_model.add_if_suspicious(item['packet'])
+        for packet in packets:
+            print(packet)
+            PacketTrafficAnalyzer.suspicious_model.add_if_suspicious(packet)
 
     @staticmethod
     def export_packets_to_db(user_id, session_name):

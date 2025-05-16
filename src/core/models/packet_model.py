@@ -2,6 +2,7 @@ from PyQt5.QtCore import QAbstractTableModel, Qt, QModelIndex
 from PyQt5.QtGui import QColor
 from datetime import datetime
 from scapy.layers.inet import IP, TCP, UDP
+import math
 
 class PacketTableModel(QAbstractTableModel):
     def __init__(self, packets=None):
@@ -23,7 +24,7 @@ class PacketTableModel(QAbstractTableModel):
         if not index.isValid():
             return None
 
-        item = self.packets[index.row()]  # теперь словарь с метаданными и пакетом
+        item = self.packets[index.row()]
         col = index.column()
 
         if role == Qt.DisplayRole:
@@ -66,8 +67,10 @@ class PacketTableModel(QAbstractTableModel):
         return None
 
     def add_packet(self, packet):
+        packet.custom_number = self.packet_counter 
+        self.packet_counter += 1
         item = {
-            'timestamp': datetime.fromtimestamp(packet.time),
+            'timestamp': datetime.fromtimestamp(math.floor(packet.time)),
             'src_ip': packet.getlayer(IP).src if packet.haslayer(IP) else None,
             'dst_ip': packet.getlayer(IP).dst if packet.haslayer(IP) else None,
             'protocol': None,
@@ -76,7 +79,6 @@ class PacketTableModel(QAbstractTableModel):
             'tcp_flags': None,
             'packet': packet,
         }
-
         if packet.haslayer(TCP):
             tcp = packet.getlayer(TCP)
             item['protocol'] = 'TCP'
@@ -102,6 +104,7 @@ class PacketTableModel(QAbstractTableModel):
         self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount())
         self.packets.append(item)
         self.endInsertRows()
+
 
     def reset_packet_counter(self):
         self.packet_counter = 1

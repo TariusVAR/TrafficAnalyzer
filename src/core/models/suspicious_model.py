@@ -106,6 +106,8 @@ class SuspiciousListModel(QStandardItemModel):
                 reasons.append("Обнаружен FTP/Telnet логин")
 
         for reason in reasons:
+            print(packet)
+            print(type(packet))
             item_text = f"Пакет №{getattr(packet, 'custom_number', '?')}: {reason}"
             self.appendRow(QStandardItem(item_text))
 

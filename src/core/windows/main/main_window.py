@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QMainWindow, QFileDialog, QHeaderView, QTreeWidgetItem, QMessageBox, QInputDialog
+from PyQt5.QtWidgets import QMainWindow, QFileDialog, QHeaderView, QTreeWidgetItem, QMessageBox, QInputDialog, QLineEdit
 from PyQt5.uic import loadUi
 from PyQt5.QtCore import Qt
 from scapy.all import get_working_ifaces
@@ -140,8 +140,9 @@ class MainWindow(QMainWindow):
             if not self.user_id:
                 self.handle_auth_menu()
                 return
-            session_name, ok = QFileDialog.getSaveFileName(self, "Имя сессии", "", "")
-            if ok:
+            # session_name, ok = QFileDialog.getSaveFileName(self, "Имя сессии", "", "")
+            session_name, ok = QInputDialog().getText(self, "Имя сессии", "Введите название новой сессии:", QLineEdit.Normal)
+            if ok and session_name:
                 PacketTrafficAnalyzer.export_packets_to_db(self.user_id, session_name)
                 QMessageBox.information(self, "Успешно", f"Сессия сохранена в БД как '{session_name}'")
 

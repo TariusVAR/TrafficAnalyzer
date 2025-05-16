@@ -3,6 +3,7 @@ from datetime import datetime
 from scapy.all import Ether
 from scapy.layers.inet import IP, TCP, UDP
 from src.database.db_connection import get_db_connection
+from math import floor
 
 class DBInterface:
     def __init__(self):
@@ -45,23 +46,25 @@ class DBInterface:
                 session_id = cur.fetchone()[0]
 
                 for pkt in packets:
-                    timestamp = datetime.fromtimestamp(pkt.time)
-                    ip_layer = pkt.getlayer(IP)
-                    proto = pkt.lastlayer().name if pkt.lastlayer() else 'N/A'
+                    timestamp = pkt['timestamp']   
+                    packet = pkt['packet']  
+                    ip_layer = packet.getlayer(IP)
+                    # proto = packet.lastlayer().name if packet.lastlayer() else 'N/A'
+                    proto = pkt['protocol']
                     src_ip = ip_layer.src if ip_layer else None
                     dst_ip = ip_layer.dst if ip_layer else None
                     src_port = None
                     dst_port = None
                     tcp_flags = None
 
-                    if pkt.haslayer(TCP):
-                        tcp = pkt.getlayer(TCP)
+                    if packet.haslayer(TCP):
+                        tcp = packet.getlayer(TCP)
                         src_port = tcp.sport
                         dst_port = tcp.dport
                         flags = tcp.sprintf('%TCP.flags%')
                         flag_list = []
                         if 'A' in flags:
-                            flag_list.append('ACK')
+                            flag_list.append('ACK') 
                         if 'R' in flags:
                             flag_list.append('RST')
                         if 'S' in flags:
@@ -69,12 +72,12 @@ class DBInterface:
                         if 'F' in flags:
                             flag_list.append('FIN')
                         tcp_flags = ", ".join(flag_list) if flag_list else None
-                    elif pkt.haslayer(UDP):
-                        udp = pkt.getlayer(UDP)
+                    elif packet.haslayer(UDP):
+                        udp = packet.getlayer(UDP)
                         src_port = udp.sport
                         dst_port = udp.dport
-
-                    raw = bytes(pkt)
+                    
+                    payload = bytes(packet)
 
                     cur.execute("""
                         INSERT INTO packets (
@@ -83,7 +86,7 @@ class DBInterface:
                         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """, (
                         session_id, timestamp, src_ip, dst_ip,
-                        proto, raw, src_port, dst_port, tcp_flags
+                        proto, payload, src_port, dst_port, tcp_flags
                     ))
         except Exception as e:
             print("DB error (save_packets_to_db):", e)
@@ -99,7 +102,7 @@ class DBInterface:
             print("DB error (list_sessions):", e)
             return []
 
-    def load_packets_from_db(self, session_name):
+    def load_packets_from_db(self, session_name, binary = False):
         try:
             self.cursor.execute("""
                 SELECT timestamp, src_ip, dst_ip, protocol, src_port, dst_port, tcp_flags, payload
@@ -112,7 +115,17 @@ class DBInterface:
             packets_info = []
             for row in rows:
                 timestamp, src_ip, dst_ip, protocol, src_port, dst_port, tcp_flags, payload = row
+                # if binary:
+                #     bytes_paylod = bytes(payload)
+                #     pkt = Ether(bytes.decode(bytes_paylod))
+                #     print(pkt)
+                # else:
+                #     pkt = Ether(payload)
+
                 pkt = Ether(payload)
+                # print(pkt.payload.load)
+                # print(pkt.payload)
+                # print(type(pkt.payload))
                 packets_info.append({
                     'timestamp': timestamp,
                     'src_ip': src_ip,
