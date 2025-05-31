@@ -319,6 +319,7 @@
      <string>Сервер</string>
     </property>
     <addaction name="actionAuthorisation"/>
+    <addaction name="actionEditUser"/>
    </widget>
    <addaction name="menu"/>
    <addaction name="menuAutorisation"/>
@@ -368,6 +369,14 @@
   <action name="actionAuthorisation">
    <property name="text">
     <string>Авторизация</string>
+   </property>
+  </action>
+  <action name="actionEditUser">
+   <property name="text">
+    <string>Редактировать пользователей</string>
+   </property>
+   <property name="visible">
+    <bool>false</bool>
    </property>
   </action>
  </widget>

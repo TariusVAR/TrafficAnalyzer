@@ -20,7 +20,13 @@ class PacketTrafficAnalyzer:
 
     @staticmethod
     def start_sniffing(iface, filter_text, on_packet_received):
+
+        PacketTrafficAnalyzer.packet_model.packets.clear()
+        PacketTrafficAnalyzer.packet_model.layoutChanged.emit()
+        PacketTrafficAnalyzer.suspicious_model.clear()
+        PacketTrafficAnalyzer.packet_model.reset_packet_counter()
         PacketTrafficAnalyzer.sniffer_thread = QThread()
+
         PacketTrafficAnalyzer.sniffer_worker = PacketSnifferWorker(iface, filter_text)
         PacketTrafficAnalyzer.sniffer_worker.moveToThread(PacketTrafficAnalyzer.sniffer_thread)
 
@@ -91,6 +97,11 @@ class PacketTrafficAnalyzer:
     @staticmethod
     def import_packets(file_name):
         packets = import_packets_from_file(file_name)
+        PacketTrafficAnalyzer.packet_model.beginResetModel()
+        PacketTrafficAnalyzer.packet_model.packets.clear()
+        PacketTrafficAnalyzer.packet_model.reset_packet_counter()
+        PacketTrafficAnalyzer.packet_model.endResetModel()
+        PacketTrafficAnalyzer.suspicious_model.clear()
         for packet in packets:
             PacketTrafficAnalyzer.packet_model.add_packet(packet)
             PacketTrafficAnalyzer.suspicious_model.add_if_suspicious(packet)
@@ -99,7 +110,6 @@ class PacketTrafficAnalyzer:
     def export_packets(file_name):
         queries = PacketTrafficAnalyzer.packet_model.packets
         packets = [query['packet'] for query in queries]
-        [print(packet) for packet in packets]
         export_packets_to_file(file_name, packets)
 
     # -----database-----
@@ -108,13 +118,13 @@ class PacketTrafficAnalyzer:
         db = DBInterface()
         packets = db.load_packets_from_db(session_name, True)
         PacketTrafficAnalyzer.packet_model.beginResetModel()
-        PacketTrafficAnalyzer.packet_model.packets = packets
         PacketTrafficAnalyzer.packet_model.reset_packet_counter()
-        PacketTrafficAnalyzer.packet_model.endResetModel()  
+        PacketTrafficAnalyzer.packet_model.endResetModel() 
+        PacketTrafficAnalyzer.suspicious_model.clear()
 
         for packet in packets:
-            print(packet)
-            PacketTrafficAnalyzer.suspicious_model.add_if_suspicious(packet)
+            PacketTrafficAnalyzer.packet_model.add_packet(packet)
+            PacketTrafficAnalyzer.suspicious_model.add_if_suspicious_bd(packet)
 
     @staticmethod
     def export_packets_to_db(user_id, session_name):

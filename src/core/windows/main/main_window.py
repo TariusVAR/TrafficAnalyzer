@@ -1,9 +1,11 @@
-from PyQt5.QtWidgets import QMainWindow, QFileDialog, QHeaderView, QTreeWidgetItem, QMessageBox, QInputDialog, QLineEdit
+from PyQt5.QtWidgets import QMainWindow, QFileDialog, QHeaderView, QTreeWidgetItem, QMessageBox, QInputDialog, QLineEdit, QDialog
 from PyQt5.uic import loadUi
 from PyQt5.QtCore import Qt
 from scapy.all import get_working_ifaces
 from datetime import datetime
 
+from src.core.windows.user_edit.user_edit_window import UserEditWindow
+from src.core.dialogs.session_dialog import SessionSelectDialog
 from src.core.windows.main.main_logic import PacketTrafficAnalyzer
 from src.core.windows.auth.auth_window import AuthWindow
 from src.database.db_interface import DBInterface
@@ -20,6 +22,7 @@ class MainWindow(QMainWindow):
         PacketTrafficAnalyzer.set_main_window(self)
 
         self.actionAuthorisation.triggered.connect(self.handle_auth_menu)
+        self.actionEditUser.triggered.connect(self.open_user_edit_window)
 
         self.tableViewPacketShowcase.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.tableViewPacketShowcase.setAlternatingRowColors(True)
@@ -89,35 +92,44 @@ class MainWindow(QMainWindow):
         self.statusbar.showMessage(f"Фильтр применён: {filter_text}")
 
     def import_packets(self):
-        choice = QMessageBox.question(
-            self, "Загрузка", "Загрузить с диска или из базы данных?",
-            QMessageBox.StandardButton.Open | QMessageBox.StandardButton.Yes,
-            QMessageBox.StandardButton.Open
-        )
+        self.treeViewPacketInfo.clear()
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Загрузка")
+        msg.setText("Загрузить из базы данных или с диска?")
+        disk_button = msg.addButton("С диска", QMessageBox.AcceptRole)
+        db_button = msg.addButton("Из базы данных", QMessageBox.YesRole)
+        msg.exec()
 
-        if choice == QMessageBox.StandardButton.Open:
+        if msg.clickedButton() == disk_button:
             file_name, _ = QFileDialog.getOpenFileName(self, "Импортировать pcap", "", "PCAP files (*.pcap *.cap)")
             if file_name:
-                self.packet_model.beginResetModel()
-                self.packet_model.packets.clear()
-                self.packet_model.reset_packet_counter()
-                self.packet_model.endResetModel()
-                self.treeViewPacketInfo.clear()
-                self.suspicious_model.clear()
                 PacketTrafficAnalyzer.import_packets(file_name)
                 self.statusbar.showMessage(f"Импортировано: {file_name}")
-        elif choice == QMessageBox.StandardButton.Yes:
+        elif msg.clickedButton() == db_button:
             if not self.user_id:
                 self.handle_auth_menu()
                 return
             db = DBInterface()
-            sessions = db.list_sessions(self.user_id)
+            user_role = db.get_user_role(self.user_id)
+            sessions = db.list_sessions(self.user_id, user_role)
             if sessions:
-                session, ok = QInputDialog.getItem(self, "Выбор сессии", "Выберите:", sessions, 0, False)
-                if ok:
-                    PacketTrafficAnalyzer.import_packets_from_db(session)
-                    self.treeViewPacketInfo.clear()
-                    self.statusbar.showMessage(f"Загружено пакетов из БД: {session}")
+                dialog = SessionSelectDialog(sessions, self)
+                if dialog.exec() == QDialog.Accepted:
+                    if dialog.to_delete:
+                        confirm = QMessageBox.question(
+                            self, "Подтверждение",
+                            f"Удалить сессию '{dialog.selected_session}'?",
+                            QMessageBox.Yes | QMessageBox.No
+                        )
+                        if confirm == QMessageBox.Yes:
+                            try:
+                                db.delete_session(dialog.selected_session)
+                                self.statusbar.showMessage(f"Сессия '{dialog.selected_session}' удалена")
+                            except Exception as e:
+                                QMessageBox.critical(self, "Ошибка", f"Не удалось удалить сессию: {e}")
+                    else:
+                        PacketTrafficAnalyzer.import_packets_from_db(dialog.selected_session)
+                        self.statusbar.showMessage(f"Загружено пакетов из БД: {dialog.selected_session}")
 
 
     def export_packets(self):
@@ -125,26 +137,27 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Нет данных", "Нет пакетов для сохранения.")
             return
 
-        choice = QMessageBox.question(
-            self, "Сохранение", "Сохранить на диск или в базу данных?",
-            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Yes,
-            QMessageBox.StandardButton.Save
-        )
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Сохранение")
+        msg.setText("Сохранить в базу данных или на диск?")
+        disk_button = msg.addButton("На диск", QMessageBox.AcceptRole)
+        db_button = msg.addButton("В базу данных", QMessageBox.YesRole)
+        msg.exec()
 
-        if choice == QMessageBox.StandardButton.Save:
+        if msg.clickedButton() == disk_button:
             file_name, _ = QFileDialog.getSaveFileName(self, "Сохранить pcap", "", "PCAP files (*.pcap)")
             if file_name:
                 PacketTrafficAnalyzer.export_packets(file_name)
                 self.statusbar.showMessage(f"Сохранено в файл: {file_name}")
-        elif choice == QMessageBox.StandardButton.Yes:
+        elif msg.clickedButton() == db_button:
             if not self.user_id:
                 self.handle_auth_menu()
                 return
-            # session_name, ok = QFileDialog.getSaveFileName(self, "Имя сессии", "", "")
             session_name, ok = QInputDialog().getText(self, "Имя сессии", "Введите название новой сессии:", QLineEdit.Normal)
             if ok and session_name:
                 PacketTrafficAnalyzer.export_packets_to_db(self.user_id, session_name)
                 QMessageBox.information(self, "Успешно", f"Сессия сохранена в БД как '{session_name}'")
+
 
     def scroll_to_bottom_suspicious_list(self):
         self.listViewSuspiciousPackets.scrollToBottom()
@@ -157,6 +170,18 @@ class MainWindow(QMainWindow):
         self.user_id = user_id
         self.username = username
         self.statusbar.showMessage(f"Вы вошли как: {username}")
+
+        db = DBInterface()
+        role = db.get_user_role(user_id)
+
+        if role == "admin":
+            self.actionEditUser.setVisible(True)
+        else:
+            self.actionEditUser.setVisible(False)
+            
+    def open_user_edit_window(self):
+        self.user_edit_window = UserEditWindow()
+        self.user_edit_window.show()
 
     def on_packet_received(self, packet):
         self.packet_model.add_packet(packet)
@@ -173,7 +198,7 @@ class MainWindow(QMainWindow):
             return
 
         source_index = self.proxy_model.mapToSource(proxy_index)
-        packet = self.packet_model.packets[source_index.row()]  # это словарь
+        packet = self.packet_model.packets[source_index.row()] 
 
         self.treeViewPacketInfo.clear()
         self.treeViewPacketInfo.setHeaderLabels(["Поле", "Значение"])

@@ -1,9 +1,7 @@
 import bcrypt
-from datetime import datetime
 from scapy.all import Ether
 from scapy.layers.inet import IP, TCP, UDP
 from src.database.db_connection import get_db_connection
-from math import floor
 
 class DBInterface:
     def __init__(self):
@@ -22,11 +20,51 @@ class DBInterface:
             print("DB error (get_user_by_username):", e)
             return None
 
+    def get_user_role(self, user_id):
+        try:
+            self.cursor.execute("SELECT user_role FROM users WHERE id = %s", (user_id,))
+            row = self.cursor.fetchone()
+            return row[0] if row else "user"
+        except Exception as e:
+            print("DB error (get_user_role):", e)
+            return "user"
+        
+    def get_all_users(self):
+        try:
+            self.cursor.execute("SELECT id, username FROM users")
+            rows = self.cursor.fetchall()
+            return [{"id": row[0], "username": row[1]} for row in rows]
+        except Exception as e:
+            print("DB error (get_all_users):", e)
+            return []
+    
+    def update_user_role(self, user_id, new_role):
+        try:
+            self.cursor.execute("UPDATE users SET user_role = %s WHERE id = %s", (new_role, user_id))
+            self.conn.commit()
+            return True
+        except Exception as e:
+            print("DB error (update_user_role):", e)
+            self.conn.rollback()
+            return False
+
+    def delete_user(self, user_id):
+        try:
+            self.cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+            self.conn.commit()
+            return True
+        except Exception as e:
+            print("DB error (delete_user):", e)
+            self.conn.rollback()
+            return False
+
+
+
     def register_user(self, username, password):
         hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
         try:
             self.cursor.execute(
-                "INSERT INTO users (username, password_hash) VALUES (%s, %s)",
+                "INSERT INTO users (username, password_hash, user_role) VALUES (%s, %s, 'user')",
                 (username, hashed)
             )
             return True, None
@@ -91,16 +129,26 @@ class DBInterface:
         except Exception as e:
             print("DB error (save_packets_to_db):", e)
 
-    def list_sessions(self, user_id):
+    def list_sessions(self, user_id, user_role='user'):
         try:
-            self.cursor.execute(
-                "SELECT session_name FROM sessions WHERE user_id = %s",
-                (user_id,)
-            )
+            if user_role == 'admin':
+                self.cursor.execute("SELECT session_name FROM sessions")
+            else:
+                self.cursor.execute("SELECT session_name FROM sessions WHERE user_id = %s", (user_id,))
             return [row[0] for row in self.cursor.fetchall()]
         except Exception as e:
             print("DB error (list_sessions):", e)
             return []
+
+    def delete_session(self, session_name):
+        try:
+            self.cursor.execute("""
+                DELETE FROM packets WHERE session_id = (SELECT id FROM sessions WHERE session_name = %s);
+                DELETE FROM sessions WHERE session_name = %s;
+            """, (session_name, session_name))
+        except Exception as e:
+            print("DB error (delete_session):", e)
+            raise
 
     def load_packets_from_db(self, session_name, binary = False):
         try:
@@ -113,19 +161,10 @@ class DBInterface:
             rows = self.cursor.fetchall()
 
             packets_info = []
-            for row in rows:
+            for i, row in enumerate(rows):
                 timestamp, src_ip, dst_ip, protocol, src_port, dst_port, tcp_flags, payload = row
-                # if binary:
-                #     bytes_paylod = bytes(payload)
-                #     pkt = Ether(bytes.decode(bytes_paylod))
-                #     print(pkt)
-                # else:
-                #     pkt = Ether(payload)
 
                 pkt = Ether(payload)
-                # print(pkt.payload.load)
-                # print(pkt.payload)
-                # print(type(pkt.payload))
                 packets_info.append({
                     'timestamp': timestamp,
                     'src_ip': src_ip,
@@ -135,6 +174,7 @@ class DBInterface:
                     'dst_port': dst_port,
                     'tcp_flags': tcp_flags,
                     'packet': pkt,
+                    'custom_number': i + 1
                 })
             return packets_info
         except Exception as e:
