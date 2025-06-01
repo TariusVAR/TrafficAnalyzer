@@ -18,11 +18,13 @@ class PacketSnifferWorker(QObject):
                 iface=self.iface,
                 filter=self.filter_expr,
                 prn=self._handle_packet,
-                timeout=1
+                timeout=1,
+                store=False
             )
         self.finished.emit()
 
     def _handle_packet(self, packet):
+        print(packet.summary())
         if not self._stop:
             self.packet_received.emit(packet)
 

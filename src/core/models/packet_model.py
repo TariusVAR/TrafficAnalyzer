@@ -66,45 +66,63 @@ class PacketTableModel(QAbstractTableModel):
             return self.headers[section]
         return None
 
-    def add_packet(self, packet):
-        packet.custom_number = self.packet_counter 
+    # def add_packet(self, packet):
+    #     packet.custom_number = self.packet_counter
+    #     self.packet_counter += 1
+
+    #     item = {
+    #         'timestamp': datetime.fromtimestamp(int(packet.time)),
+    #         'src_ip': packet[IP].src if packet.haslayer(IP) else None,
+    #         'dst_ip': packet[IP].dst if packet.haslayer(IP) else None,
+    #         'protocol': 'TCP' if packet.haslayer(TCP) else 'UDP' if packet.haslayer(UDP) else packet.name,
+    #         'src_port': packet[TCP].sport if packet.haslayer(TCP) else packet[UDP].sport if packet.haslayer(UDP) else None,
+    #         'dst_port': packet[TCP].dport if packet.haslayer(TCP) else packet[UDP].dport if packet.haslayer(UDP) else None,
+    #         'tcp_flags': packet.sprintf('%TCP.flags%') if packet.haslayer(TCP) else None,
+    #         'packet': packet
+    #     }
+
+    #     self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount())
+    #     self.packets.append(item)
+    #     self.endInsertRows()
+
+    def add_packet_from_scapy(self, packet):
+        packet.custom_number = self.packet_counter
         self.packet_counter += 1
+
         item = {
-            'timestamp': datetime.fromtimestamp(math.floor(packet.time)),
-            'src_ip': packet.getlayer(IP).src if packet.haslayer(IP) else None,
-            'dst_ip': packet.getlayer(IP).dst if packet.haslayer(IP) else None,
-            'protocol': None,
-            'src_port': None,
-            'dst_port': None,
-            'tcp_flags': None,
-            'packet': packet,
+            'timestamp': datetime.fromtimestamp(int(packet.time)),
+            'src_ip': packet[IP].src if packet.haslayer(IP) else None,
+            'dst_ip': packet[IP].dst if packet.haslayer(IP) else None,
+            'protocol': 'TCP' if packet.haslayer(TCP) else 'UDP' if packet.haslayer(UDP) else packet.name,
+            'src_port': packet[TCP].sport if packet.haslayer(TCP) else packet[UDP].sport if packet.haslayer(UDP) else None,
+            'dst_port': packet[TCP].dport if packet.haslayer(TCP) else packet[UDP].dport if packet.haslayer(UDP) else None,
+            'tcp_flags': packet.sprintf('%TCP.flags%') if packet.haslayer(TCP) else None,
+            'packet': packet
         }
-        if packet.haslayer(TCP):
-            tcp = packet.getlayer(TCP)
-            item['protocol'] = 'TCP'
-            item['src_port'] = tcp.sport
-            item['dst_port'] = tcp.dport
-            flags = tcp.sprintf('%TCP.flags%')
-            flags_list = []
-            if 'A' in flags: flags_list.append('ACK')
-            if 'R' in flags: flags_list.append('RST')
-            if 'S' in flags: flags_list.append('SYN')
-            if 'F' in flags: flags_list.append('FIN')
-            item['tcp_flags'] = ", ".join(flags_list) if flags_list else None
-        elif packet.haslayer(UDP):
-            udp = packet.getlayer(UDP)
-            item['protocol'] = 'UDP'
-            item['src_port'] = udp.sport
-            item['dst_port'] = udp.dport
-        elif packet.haslayer(IP):
-            item['protocol'] = 'IP'
-        else:
-            item['protocol'] = packet.name if hasattr(packet, 'name') else "-"
 
         self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount())
         self.packets.append(item)
         self.endInsertRows()
 
+    def add_packet_from_db(self, packet_info: dict):
+        packet = packet_info['packet']
+        packet.custom_number = self.packet_counter
+        self.packet_counter += 1    
+
+        item = {
+            'timestamp': packet_info['timestamp'],
+            'src_ip': packet_info['src_ip'],
+            'dst_ip': packet_info['dst_ip'],
+            'protocol': packet_info['protocol'],
+            'src_port': packet_info['src_port'],
+            'dst_port': packet_info['dst_port'],
+            'tcp_flags': packet_info['tcp_flags'],
+            'packet': packet
+        }   
+
+        self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount())
+        self.packets.append(item)
+        self.endInsertRows()
 
     def reset_packet_counter(self):
         self.packet_counter = 1

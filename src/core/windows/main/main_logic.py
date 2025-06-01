@@ -103,7 +103,7 @@ class PacketTrafficAnalyzer:
         PacketTrafficAnalyzer.packet_model.endResetModel()
         PacketTrafficAnalyzer.suspicious_model.clear()
         for packet in packets:
-            PacketTrafficAnalyzer.packet_model.add_packet(packet)
+            PacketTrafficAnalyzer.packet_model.add_packet_from_scapy(packet)
             PacketTrafficAnalyzer.suspicious_model.add_if_suspicious(packet)
 
     @staticmethod
@@ -116,15 +116,18 @@ class PacketTrafficAnalyzer:
     @staticmethod
     def import_packets_from_db(session_name):
         db = DBInterface()
-        packets = db.load_packets_from_db(session_name, True)
-        PacketTrafficAnalyzer.packet_model.beginResetModel()
-        PacketTrafficAnalyzer.packet_model.reset_packet_counter()
-        PacketTrafficAnalyzer.packet_model.endResetModel() 
+        packets = db.load_packets_from_db(session_name)
+
+        model = PacketTrafficAnalyzer.packet_model
+        model.beginResetModel()
+        model.packets.clear()
+        model.reset_packet_counter()
+        model.endResetModel()
         PacketTrafficAnalyzer.suspicious_model.clear()
 
-        for packet in packets:
-            PacketTrafficAnalyzer.packet_model.add_packet(packet)
-            PacketTrafficAnalyzer.suspicious_model.add_if_suspicious_bd(packet)
+        for pkt in packets:
+            model.add_packet_from_scapy(pkt)  # pkt — это scapy пакет
+            PacketTrafficAnalyzer.suspicious_model.add_if_suspicious(pkt)
 
     @staticmethod
     def export_packets_to_db(user_id, session_name):

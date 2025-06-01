@@ -1,5 +1,6 @@
 import bcrypt
 from scapy.all import Ether
+from scapy.packet import Raw
 from scapy.layers.inet import IP, TCP, UDP
 from src.database.db_connection import get_db_connection
 
@@ -150,7 +151,7 @@ class DBInterface:
             print("DB error (delete_session):", e)
             raise
 
-    def load_packets_from_db(self, session_name, binary = False):
+    def load_packets_from_db(self, session_name, binary=True):
         try:
             self.cursor.execute("""
                 SELECT timestamp, src_ip, dst_ip, protocol, src_port, dst_port, tcp_flags, payload
@@ -160,26 +161,26 @@ class DBInterface:
             """, (session_name,))
             rows = self.cursor.fetchall()
 
-            packets_info = []
+            packets = []
             for i, row in enumerate(rows):
-                timestamp, src_ip, dst_ip, protocol, src_port, dst_port, tcp_flags, payload = row
+                timestamp, _, _, _, _, _, _, payload = row
+                try:
+                    packet = Ether(bytes(payload))
+                    if IP in packet:
+                        packet = packet[IP]
+                    packet = packet.__class__(bytes(packet))
 
-                pkt = Ether(payload)
-                packets_info.append({
-                    'timestamp': timestamp,
-                    'src_ip': src_ip,
-                    'dst_ip': dst_ip,
-                    'protocol': protocol,
-                    'src_port': src_port,
-                    'dst_port': dst_port,
-                    'tcp_flags': tcp_flags,
-                    'packet': pkt,
-                    'custom_number': i + 1
-                })
-            return packets_info
+                    packet.time = timestamp.timestamp()
+                    packet.custom_number = i + 1
+                    packets.append(packet)
+                except Exception as e:
+                    print(f"Ошибка парсинга пакета №{i + 1}: {e}")
+            return packets
         except Exception as e:
             print("DB error (load_packets_from_db):", e)
             return []
+
+
 
 
 

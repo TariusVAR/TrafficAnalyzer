@@ -184,7 +184,7 @@ class MainWindow(QMainWindow):
         self.user_edit_window.show()
 
     def on_packet_received(self, packet):
-        self.packet_model.add_packet(packet)
+        self.packet_model.add_packet_from_scapy(packet)
         self.suspicious_model.add_if_suspicious(packet)
         self.tableViewPacketShowcase.scrollToBottom()
 

@@ -23,15 +23,10 @@ class SuspiciousListModel(QStandardItemModel):
             self.appendRow(QStandardItem(item_text))
 
     def add_if_suspicious_bd(self, packet_info: dict):
-        if not packet_info:
-            return
-
-        reasons = self.analyze_packet(packet_info)
-
-        for reason in reasons:
-            item_text = f"Пакет №{packet_info.get('custom_number', '?')}: {reason}"
-            self.appendRow(QStandardItem(item_text))
-
+        packet = packet_info.get('packet')
+        if packet:
+            self.add_if_suspicious(packet)
+            
     def extract_packet_data(self, packet):
         data = {
             'packet': packet,
