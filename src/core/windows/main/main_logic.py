@@ -1,4 +1,6 @@
 from PyQt5.QtCore import QThread, QSortFilterProxyModel, QRegExp, Qt
+from PyQt5.QtWidgets import QMessageBox
+
 from src.core.packet_sniffer import PacketSnifferWorker
 from src.core.models.packet_model import PacketTableModel
 from src.core.models.suspicious_model import SuspiciousListModel
@@ -92,6 +94,13 @@ class PacketTrafficAnalyzer:
 
         else:
             PacketTrafficAnalyzer.proxy_model.setFilterRegExp(QRegExp())
+            return
+        
+        PacketTrafficAnalyzer.proxy_model.setFilterRegExp(QRegExp(regex, Qt.CaseInsensitive, QRegExp.RegExp))
+
+        if PacketTrafficAnalyzer.proxy_model.rowCount() == 0:
+            PacketTrafficAnalyzer.proxy_model.setFilterRegExp(QRegExp())
+            QMessageBox.information(self, "Фильтрация", "Совпадений не найдено. Фильтр не применён.")
 
     # -----file-----
     @staticmethod

@@ -321,9 +321,16 @@
     <addaction name="actionAuthorisation"/>
     <addaction name="actionEditUser"/>
    </widget>
+   <widget class="QMenu" name="menuSecurity">
+    <property name="title">
+     <string>Безопасность</string>
+    </property>
+    <addaction name="actionAnomalyEdit"/>
+   </widget>
    <addaction name="menu"/>
    <addaction name="menuAutorisation"/>
    <addaction name="menu_3"/>
+   <addaction name="menuSecurity"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="action">
@@ -377,6 +384,11 @@
    </property>
    <property name="visible">
     <bool>false</bool>
+   </property>
+  </action>
+  <action name="actionAnomalyEdit">
+   <property name="text">
+    <string>Настройка обнаружения аномалий</string>
    </property>
   </action>
  </widget>

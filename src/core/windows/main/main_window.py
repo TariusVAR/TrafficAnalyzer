@@ -9,6 +9,7 @@ from src.core.dialogs.session_dialog import SessionSelectDialog
 from src.core.windows.main.main_logic import PacketTrafficAnalyzer
 from src.core.windows.auth.auth_window import AuthWindow
 from src.database.db_interface import DBInterface
+from src.core.dialogs.anomaly_edit_dialog import AnomalyEditDialog
 
 
 class MainWindow(QMainWindow):
@@ -23,6 +24,13 @@ class MainWindow(QMainWindow):
 
         self.actionAuthorisation.triggered.connect(self.handle_auth_menu)
         self.actionEditUser.triggered.connect(self.open_user_edit_window)
+        
+        try:
+            self.actionAnomalyEdit.triggered.disconnect()
+        except TypeError:
+            pass
+        self.menuSecurity.menuAction().setVisible(False)
+        self.actionAnomalyEdit.triggered.connect(self.on_actionAnomalyEdit_triggered)
 
         self.tableViewPacketShowcase.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.tableViewPacketShowcase.setAlternatingRowColors(True)
@@ -176,12 +184,19 @@ class MainWindow(QMainWindow):
 
         if role == "admin":
             self.actionEditUser.setVisible(True)
+            self.menuSecurity.menuAction().setVisible(True)
         else:
             self.actionEditUser.setVisible(False)
+            self.menuSecurity.menuAction().setVisible(False)
             
     def open_user_edit_window(self):
         self.user_edit_window = UserEditWindow()
         self.user_edit_window.show()
+
+    def on_actionAnomalyEdit_triggered(self):
+        self.anomaly_dialog = AnomalyEditDialog(self)
+        self.anomaly_dialog.setModal(True)
+        self.anomaly_dialog.show()
 
     def on_packet_received(self, packet):
         self.packet_model.add_packet_from_scapy(packet)

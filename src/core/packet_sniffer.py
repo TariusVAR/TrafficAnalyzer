@@ -24,7 +24,6 @@ class PacketSnifferWorker(QObject):
         self.finished.emit()
 
     def _handle_packet(self, packet):
-        print(packet.summary())
         if not self._stop:
             self.packet_received.emit(packet)
 

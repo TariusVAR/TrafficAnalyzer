@@ -59,8 +59,6 @@ class DBInterface:
             self.conn.rollback()
             return False
 
-
-
     def register_user(self, username, password):
         hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
         try:
@@ -166,9 +164,9 @@ class DBInterface:
                 timestamp, _, _, _, _, _, _, payload = row
                 try:
                     packet = Ether(bytes(payload))
-                    if IP in packet:
-                        packet = packet[IP]
-                    packet = packet.__class__(bytes(packet))
+                    # if IP in packet:
+                    #     packet = packet[IP]
+                    # packet = packet.__class__(bytes(packet))
 
                     packet.time = timestamp.timestamp()
                     packet.custom_number = i + 1
@@ -180,6 +178,51 @@ class DBInterface:
             print("DB error (load_packets_from_db):", e)
             return []
 
+    def get_all_rules(self):
+        try:
+            self.cursor.execute("SELECT id, rule_type, value FROM allowed_rules")
+            return self.cursor.fetchall()
+        except Exception as e:
+            print("DB error (get_all_rules):", e)
+            return []
+
+    def add_allowed_rule(self, rule_type, value):
+        try:
+            self.cursor.execute(
+                "INSERT INTO allowed_rules (rule_type, value) VALUES (%s, %s)",
+                (rule_type, str(value))
+            )
+            return True
+        except Exception as e:
+            print("DB error (add_allowed_rule):", e)
+            return False
+
+    def remove_allowed_rule(self, rule_type, value):
+        try:
+            self.cursor.execute(
+                "DELETE FROM allowed_rules WHERE rule_type = %s AND value = %s",
+                (rule_type, str(value))
+            )
+            return True
+        except Exception as e:
+            print("DB error (remove_allowed_rule):", e)
+            return False
+
+    def get_allowed_ips(self):
+        try:
+            self.cursor.execute("SELECT value FROM allowed_rules WHERE rule_type = 'ip'")
+            return [row[0] for row in self.cursor.fetchall()]
+        except Exception as e:
+            print("DB error (get_allowed_ips):", e)
+            return []
+
+    def get_allowed_ports(self):
+        try:
+            self.cursor.execute("SELECT value FROM allowed_rules WHERE rule_type = 'port'")
+            return [int(row[0]) for row in self.cursor.fetchall()]
+        except Exception as e:
+            print("DB error (get_allowed_ports):", e)
+            return []
 
 
 

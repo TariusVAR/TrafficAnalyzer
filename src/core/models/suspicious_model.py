@@ -1,34 +1,57 @@
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from scapy.layers.inet import IP, TCP, UDP, ICMP
 from scapy.layers.l2 import Ether
-from scapy.layers.dns import DNS, DNSQR
+from scapy.layers.dns import DNSQR
 from scapy.layers.http import HTTPRequest, HTTPResponse
 from scapy.layers.tls.all import TLSClientHello, TLSServerHello
 from scapy.packet import Raw
+from src.database.db_interface import DBInterface
 
 class SuspiciousListModel(QStandardItemModel):
     def __init__(self):
         super().__init__()
         self.setHorizontalHeaderLabels(["Подозрительные пакеты"])
 
+        self.db = DBInterface()
+        self.load_allowed_rules()
+
+        self.suspicious_ports = {23, 2323, 6666, 1337, 31337, 4444, 5555, 6969, 12345, 54321, 21, 22, 139, 445, 80, 443, 9050}
+        self.tor_ports = {9001, 9030, 9050}
+        self.smb_ports = {139, 445}
+        self.ddos_udp_ports = {1900, 5353, 53, 69}
+        self.rare_tcp_flags = {'FPU', 'FSR', 'SR', 'R', 'FA'}
+        self.suspicious_ips = {"192.168.1.100", "10.0.0.13", "172.16.254.1"}
+
+    def load_allowed_rules(self):
+        self.allowed_ips = set(self.db.get_allowed_ips())
+        self.allowed_ports = set(self.db.get_allowed_ports())
+
     def add_if_suspicious(self, packet):
         if not packet:
             return
 
-        packet_data = self.extract_packet_data(packet)
-        reasons = self.analyze_packet(packet_data)
+        data = self.extract_packet_data(packet)
 
+        if self.is_allowed(data):
+            return
+
+        reasons = self.analyze_packet(data)
         for reason in reasons:
-            item_text = f"Пакет №{packet_data.get('custom_number', '?')}: {reason}"
+            item_text = f"Пакет №{data.get('custom_number', '?')}: {reason}"
             self.appendRow(QStandardItem(item_text))
 
-    def add_if_suspicious_bd(self, packet_info: dict):
-        packet = packet_info.get('packet')
-        if packet:
-            self.add_if_suspicious(packet)
-            
+    def is_allowed(self, data):
+        sp, dp = data['src_port'], data['dst_port']
+        sip, dip = data['src_ip'], data['dst_ip']
+        return (
+            sip in self.allowed_ips or
+            dip in self.allowed_ips or
+            sp in self.allowed_ports or
+            dp in self.allowed_ports
+        )
+
     def extract_packet_data(self, packet):
-        data = {
+        return {
             'packet': packet,
             'custom_number': getattr(packet, 'custom_number', '?'),
             'src_ip': packet[IP].src if packet.haslayer(IP) else None,
@@ -41,97 +64,91 @@ class SuspiciousListModel(QStandardItemModel):
             'dns_query': packet[DNSQR].qname.decode(errors='ignore') if packet.haslayer(DNSQR) else '',
             'http_host': packet[HTTPRequest].Host.decode(errors='ignore') if packet.haslayer(HTTPRequest) and packet[HTTPRequest].Host else '',
             'http_path': packet[HTTPRequest].Path.decode(errors='ignore') if packet.haslayer(HTTPRequest) and packet[HTTPRequest].Path else '',
-            'ether_dst': packet[Ether].dst if packet.haslayer(Ether) else ''
+            'ether_dst': packet[Ether].dst if packet.haslayer(Ether) else '',
+            'has': packet.haslayer
         }
-        data['has'] = lambda layer: packet.haslayer(layer)
-        return data
 
-    def analyze_packet(self, data: dict):
+    def analyze_packet(self, d):
         reasons = []
 
-        suspicious_ports = {23, 2323, 6666, 1337, 31337, 4444, 5555, 6969, 12345, 54321, 21, 22, 139, 445, 80, 443, 9050}
-        tor_ports = {9001, 9030, 9050}
-        smb_ports = {139, 445}
-        ddos_udp_ports = {1900, 5353, 53, 69}
-        rare_tcp_flags = {'FPU', 'FSR', 'SR', 'R', 'FA'}
-        suspicious_ips = {"192.168.1.100", "10.0.0.13", "172.16.254.1"}
+        if d['src_ip'] in self.suspicious_ips:
+            reasons.append(f"Источник IP из списка: {d['src_ip']}")
+        if d['dst_ip'] in self.suspicious_ips:
+            reasons.append(f"Назначение IP из списка: {d['dst_ip']}")
 
-        src_ip = data.get('src_ip')
-        dst_ip = data.get('dst_ip')
-        src_port = data.get('src_port')
-        dst_port = data.get('dst_port')
-        proto = data.get('protocol', '')
-        flags = data.get('tcp_flags', '')
-        raw_bytes = data.get('raw_bytes', b'')
-
-        if src_ip in suspicious_ips:
-            reasons.append(f"Источник IP из списка: {src_ip}")
-        if dst_ip in suspicious_ips:
-            reasons.append(f"Назначение IP из списка: {dst_ip}")
-
-        if proto == 'TCP':
-            if src_port in suspicious_ports:
-                reasons.append(f"Подозрительный исходный порт TCP: {src_port}")
-            if dst_port in suspicious_ports:
-                reasons.append(f"Подозрительный целевой порт TCP: {dst_port}")
-            if dst_port in tor_ports:
-                reasons.append("TOR порт назначения")
-            if dst_port in smb_ports:
-                reasons.append("SMB порт")
-            if flags == 'S':
-                reasons.append("Возможный SYN-скан")
-            if flags in rare_tcp_flags:
-                reasons.append(f"Редкие TCP флаги: {flags}")
-            if len(raw_bytes) == 0 and flags in ['S', 'A']:
-                reasons.append(f"TCP без полезной нагрузки с флагом {flags}")
-
-        elif proto == 'UDP':
-            if src_port in suspicious_ports:
-                reasons.append(f"Подозрительный исходный порт UDP: {src_port}")
-            if dst_port in suspicious_ports:
-                reasons.append(f"Подозрительный целевой порт UDP: {dst_port}")
-            if dst_port in ddos_udp_ports:
-                reasons.append(f"Частый UDP DDoS порт: {dst_port}")
-
-        elif proto == 'ICMP' and data.get('packet') and data['packet'].haslayer(ICMP):
-            if data['packet'][ICMP].type == 8:
+        if d['protocol'] == 'TCP':
+            self.check_tcp(d, reasons)
+        elif d['protocol'] == 'UDP':
+            self.check_udp(d, reasons)
+        elif d['protocol'] == 'ICMP':
+            if d['packet'][ICMP].type == 8:
                 reasons.append("ICMP Echo Request (пинг) — возможный скан")
 
-        domain = data.get('dns_query', '')
-        if domain:
-            if any(keyword in domain.lower() for keyword in ['malware', 'botnet', 'example', 'test']):
-                reasons.append(f"DNS-запрос подозрительного домена: {domain}")
-            if domain.endswith(".onion."):
-                reasons.append(f"DNS .onion — TOR-домены: {domain}")
-
-        host = data.get('http_host', '')
-        path = data.get('http_path', '')
-        if host:
-            if any(x in host for x in ['.onion', 'malicious', 'exploit']):
-                reasons.append(f"HTTP-запрос на подозрительный хост: {host}")
-        if host or path:
-            reasons.append(f"HTTP: GET {host}{path}")
-
-        if data.get('has', lambda _: False)(HTTPResponse):
-            reasons.append("HTTP-ответ получен — возможная сессия")
-
-        if data.get('has', lambda _: False)(TLSClientHello):
-            reasons.append("TLS Client Hello обнаружен")
-        if data.get('has', lambda _: False)(TLSServerHello):
-            reasons.append("TLS Server Hello обнаружен")
-
-        if data.get('ether_dst') == "ff:ff:ff:ff:ff:ff":
-            reasons.append("Широковещательный MAC-адрес")
-
-        if b'root' in raw_bytes or b'admin' in raw_bytes:
-            reasons.append("Payload содержит 'root' или 'admin'")
-        if b'USER ' in raw_bytes or b'PASS ' in raw_bytes:
-            reasons.append("Payload содержит FTP/Telnet логин")
-
-        if dst_port and dst_port > 49152:
-            reasons.append(f"Высокий динамический порт: {dst_port}")
+        self.check_dns(d, reasons)
+        self.check_http(d, reasons)
+        self.check_tls(d, reasons)
+        self.check_misc(d, reasons)
 
         return reasons
+
+    def check_tcp(self, d, reasons):
+        sp, dp, flags = d['src_port'], d['dst_port'], d['tcp_flags']
+        rb = d['raw_bytes']
+
+        checks = [
+            (sp in self.suspicious_ports, f"Подозрительный исходный порт TCP: {sp}"),
+            (dp in self.suspicious_ports, f"Подозрительный целевой порт TCP: {dp}"),
+            (dp in self.tor_ports, "TOR порт назначения"),
+            (dp in self.smb_ports, "SMB порт"),
+            (flags == 'S', "Возможный SYN-скан"),
+            (flags in self.rare_tcp_flags, f"Редкие TCP флаги: {flags}"),
+            (len(rb) == 0 and flags in ['S', 'A'], f"TCP без полезной нагрузки с флагом {flags}")
+        ]
+        reasons.extend([msg for cond, msg in checks if cond])
+
+    def check_udp(self, d, reasons):
+        sp, dp = d['src_port'], d['dst_port']
+        if sp in self.suspicious_ports:
+            reasons.append(f"Подозрительный исходный порт UDP: {sp}")
+        if dp in self.suspicious_ports:
+            reasons.append(f"Подозрительный целевой порт UDP: {dp}")
+        if dp in self.ddos_udp_ports:
+            reasons.append(f"Частый UDP DDoS порт: {dp}")
+
+    def check_dns(self, d, reasons):
+        domain = d['dns_query']
+        if not domain:
+            return
+        if any(word in domain.lower() for word in ['malware', 'botnet', 'example', 'test']):
+            reasons.append(f"DNS-запрос подозрительного домена: {domain}")
+        if domain.endswith(".onion."):
+            reasons.append(f"DNS .onion — TOR-домены: {domain}")
+
+    def check_http(self, d, reasons):
+        host, path = d['http_host'], d['http_path']
+        if host and any(x in host for x in ['.onion', 'malicious', 'exploit']):
+            reasons.append(f"HTTP-запрос на подозрительный хост: {host}")
+        if host or path:
+            reasons.append(f"HTTP: GET {host}{path}")
+        if d['has'](HTTPResponse):
+            reasons.append("HTTP-ответ получен — возможная сессия")
+
+    def check_tls(self, d, reasons):
+        if d['has'](TLSClientHello):
+            reasons.append("TLS Client Hello обнаружен")
+        if d['has'](TLSServerHello):
+            reasons.append("TLS Server Hello обнаружен")
+
+    def check_misc(self, d, reasons):
+        rb = d['raw_bytes']
+        if d['ether_dst'] == "ff:ff:ff:ff:ff:ff":
+            reasons.append("Широковещательный MAC-адрес")
+        if any(keyword in rb for keyword in [b'root', b'admin']):
+            reasons.append("Payload содержит 'root' или 'admin'")
+        if any(keyword in rb for keyword in [b'USER ', b'PASS ']):
+            reasons.append("Payload содержит FTP/Telnet логин")
+        if d['dst_port'] and d['dst_port'] > 49152:
+            reasons.append(f"Высокий динамический порт: {d['dst_port']}")
 
     def clear(self):
         self.removeRows(0, self.rowCount())
