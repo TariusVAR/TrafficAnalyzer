@@ -1,4 +1,4 @@
-# Traffic Analysis Tool
+# TrafficAnalyzer
 
 Приложение для анализа сетевого трафика с использованием PyQt5 и PostgreSQL.
 
