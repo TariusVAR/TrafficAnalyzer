@@ -32,7 +32,7 @@ class AuthWindow(QMainWindow):
 
     def login(self):
         username = self.textEditLogin.toPlainText().strip()
-        password = self.textEditPassword.toPlainText().strip()
+        password = self.textEditPassword.text().strip()
 
         if not username or not password:
             QMessageBox.warning(self, "Ошибка", "Введите логин и пароль")

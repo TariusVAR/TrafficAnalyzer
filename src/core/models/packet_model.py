@@ -2,7 +2,6 @@ from PyQt5.QtCore import QAbstractTableModel, Qt, QModelIndex
 from PyQt5.QtGui import QColor
 from datetime import datetime
 from scapy.layers.inet import IP, TCP, UDP
-import math
 
 class PacketTableModel(QAbstractTableModel):
     def __init__(self, packets=None):
@@ -65,25 +64,6 @@ class PacketTableModel(QAbstractTableModel):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
             return self.headers[section]
         return None
-
-    # def add_packet(self, packet):
-    #     packet.custom_number = self.packet_counter
-    #     self.packet_counter += 1
-
-    #     item = {
-    #         'timestamp': datetime.fromtimestamp(int(packet.time)),
-    #         'src_ip': packet[IP].src if packet.haslayer(IP) else None,
-    #         'dst_ip': packet[IP].dst if packet.haslayer(IP) else None,
-    #         'protocol': 'TCP' if packet.haslayer(TCP) else 'UDP' if packet.haslayer(UDP) else packet.name,
-    #         'src_port': packet[TCP].sport if packet.haslayer(TCP) else packet[UDP].sport if packet.haslayer(UDP) else None,
-    #         'dst_port': packet[TCP].dport if packet.haslayer(TCP) else packet[UDP].dport if packet.haslayer(UDP) else None,
-    #         'tcp_flags': packet.sprintf('%TCP.flags%') if packet.haslayer(TCP) else None,
-    #         'packet': packet
-    #     }
-
-    #     self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount())
-    #     self.packets.append(item)
-    #     self.endInsertRows()
 
     def add_packet_from_scapy(self, packet):
         packet.custom_number = self.packet_counter

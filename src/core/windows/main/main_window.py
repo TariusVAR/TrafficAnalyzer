@@ -2,7 +2,6 @@ from PyQt5.QtWidgets import QMainWindow, QFileDialog, QHeaderView, QTreeWidgetIt
 from PyQt5.uic import loadUi
 from PyQt5.QtCore import Qt
 from scapy.all import get_working_ifaces
-from datetime import datetime
 
 from src.core.windows.user_edit.user_edit_window import UserEditWindow
 from src.core.dialogs.session_dialog import SessionSelectDialog

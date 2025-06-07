@@ -21,7 +21,7 @@ class SuspiciousListModel(QStandardItemModel):
         self.ddos_udp_ports = {1900, 5353, 53, 69}
         self.rare_tcp_flags = {'FPU', 'FSR', 'SR', 'R', 'FA'}
         self.suspicious_ips = {"192.168.1.100", "10.0.0.13", "172.16.254.1"}
-
+    
     def load_allowed_rules(self):
         self.allowed_ips = set(self.db.get_allowed_ips())
         self.allowed_ports = set(self.db.get_allowed_ports())
