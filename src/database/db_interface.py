@@ -62,16 +62,23 @@ class DBInterface:
     def register_user(self, username, password):
         hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
         try:
+            self.cursor.execute("SELECT COUNT(*) FROM users")
+            user_count = self.cursor.fetchone()[0]
+
+            role = 'admin' if user_count == 0 else 'user'
+
             self.cursor.execute(
-                "INSERT INTO users (username, password_hash, user_role) VALUES (%s, %s, 'user')",
-                (username, hashed)
+                "INSERT INTO users (username, password_hash, user_role) VALUES (%s, %s, %s)",
+                (username, hashed, role)
             )
+            self.conn.commit()
             return True, None
         except Exception as e:
             self.conn.rollback()
             if hasattr(e, 'pgcode') and e.pgcode == '23505':
                 return False, "Пользователь с таким именем уже существует"
             return False, str(e)
+
 
     def save_packets_to_db(self, user_id, session_name, packets):
         try:

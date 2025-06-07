@@ -3,7 +3,7 @@ import bcrypt
 from PyQt5.QtWidgets import QMainWindow, QMessageBox
 from PyQt5.uic import loadUi
 from src.database.db_interface import DBInterface
-
+from src.database.db_connection import ensure_tables_exist
 
 class AuthWindow(QMainWindow):
     def __init__(self, on_auth_success):
@@ -12,6 +12,7 @@ class AuthWindow(QMainWindow):
         self.on_auth_success = on_auth_success
 
         self.db = DBInterface()
+        ensure_tables_exist()
 
         self.pushButtonLogin.clicked.connect(self.login)
         self.pushButtonRegistration.clicked.connect(self.register)
